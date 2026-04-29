@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Agenda du Sommeil</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #1c1c2e;
+  --paper: #f5f2ed;
+  --ruled: #d8d3ca;
+  --accent: #2d6a8f;
+  --pill: #6b4f8f;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { font-family: 'DM Mono', monospace; background: var(--paper); color: var(--ink); min-height: 100vh; overflow-x: hidden; }
+
+header {
+  background: var(--ink); color: var(--paper);
+  padding: 14px 18px 11px; display: flex; align-items: baseline; gap: 10px;
+}
+header h1 { font-family: 'DM Serif Display', serif; font-size: 20px; }
+header span { font-size: 9px; opacity: 0.4; letter-spacing: 2px; text-transform: uppercase; }
+
+nav {
+  display: flex; background: var(--paper);
+  border-bottom: 1px solid var(--ruled);
+  position: sticky; top: 0; z-index: 200;
+}
+nav button {
+  flex: 1; padding: 10px 4px; background: none; border: none;
+  font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--ink); opacity: 0.4; cursor: pointer;
+  border-bottom: 2px solid transparent; transition: all 0.2s;
+}
+nav button.active { opacity: 1; border-bottom-color: var(--accent); }
+
+.view { display: none; padding: 16px 14px 80px; }
+.view.active { display: block; }
+
+.week-nav {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+}
+.week-nav .arrow-btn {
+  background: none; border: 1px solid var(--ruled); border-radius: 4px;
+  width: 34px; height: 34px; font-size: 16px; cursor: pointer; color: var(--ink);
+  display: flex; align-items: center; justify-content: center;
+}
+.week-label { font-family: 'DM Serif Display', serif; font-size: 15px; text-align: center; }
+.week-label small { display: block; font-family: 'DM Mono', monospace; font-size: 9px; opacity: 0.45; letter-spacing: 1px; margin-top: 2px; text-transform: uppercase; }
+
+.day-list { display: flex; flex-direction: column; gap: 7px; }
+.day-card {
+  border: 1px solid var(--ruled); border-radius: 7px; overflow: hidden;
+  cursor: pointer; transition: border-color 0.2s;
+}
+.day-card.has-data { border-color: #a0bfcf; }
+.day-card-header {
+  background: var(--ink); color: var(--paper);
+  padding: 7px 12px; display: flex; justify-content: space-between; align-items: center;
+}
+.day-card-header .dname { font-family: 'DM Serif Display', serif; font-size: 15px; text-transform: capitalize; }
+.day-card-header .ddate { opacity: 0.45; font-size: 9px; letter-spacing: 1px; }
+.day-card-header .dcheck { font-size: 12px; color: #4caf8a; }
+.day-mini { height: 24px; background: var(--paper); position: relative; overflow: hidden; }
+
+/* EDIT */
+.edit-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.back-btn {
+  background: none; border: 1px solid var(--ruled); border-radius: 5px;
+  padding: 6px 10px; font-family: 'DM Mono', monospace; font-size: 11px;
+  cursor: pointer; color: var(--ink);
+}
+.edit-title { font-family: 'DM Serif Display', serif; font-size: 18px; }
+.section-label {
+  font-size: 8px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 8px; font-weight: 500;
+}
+.entry-form { display: flex; flex-direction: column; gap: 18px; }
+
+.tool-bar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+.tool-btn {
+  flex: 1; min-width: 50px; padding: 8px 4px; border-radius: 6px;
+  border: 1.5px solid var(--ruled); background: var(--paper);
+  cursor: pointer; text-align: center; transition: all 0.15s;
+  font-family: 'DM Mono', monospace; color: var(--ink);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.tool-btn .ti { font-size: 16px; line-height: 1; }
+.tool-btn .tn { font-size: 7px; letter-spacing: 0.5px; opacity: 0.6; }
+.tool-btn.active { border-color: var(--accent); background: #e8f3f9; color: var(--accent); }
+.tool-btn.active .tn { opacity: 1; }
+
+.timeline-container {
+  border: 1px solid var(--ruled); border-radius: 7px; overflow: hidden;
+  margin-bottom: 4px; background: var(--paper);
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.tl-hours-row { display: flex; background: var(--ink); }
+.tl-hours-row .hl {
+  flex: 1; text-align: center; color: var(--paper); font-size: 7px;
+  padding: 3px 0; opacity: 0.7; letter-spacing: 0.3px;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.tl-hours-row .hl:last-child { border-right: none; }
+.tl-grid {
+  position: relative; height: 64px;
+  background: repeating-linear-gradient(90deg, transparent, transparent calc(100%/24 - 0.5px), var(--ruled) calc(100%/24 - 0.5px), var(--ruled) calc(100%/24));
+}
+.tl-segment { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+.tl-segment.sleeping {
+  background: repeating-linear-gradient(45deg, var(--accent) 0px, var(--accent) 2px, rgba(45,106,143,0.2) 2px, rgba(45,106,143,0.2) 7px);
+}
+.tl-segment.awake {
+  background: rgba(255,255,255,0.7);
+  border-top: 2px solid var(--accent); border-bottom: 2px solid var(--accent);
+}
+.tl-event {
+  position: absolute; transform: translateX(-50%);
+  font-size: 14px; line-height: 1; pointer-events: none; z-index: 10;
+}
+.tl-event.bedtime { top: 4px; }
+.tl-event.wakeup { bottom: 4px; top: auto; transform: translateX(-50%); }
+.tl-event.mid { top: 50%; transform: translate(-50%, -50%); }
+.tl-cursor {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: rgba(45,106,143,0.5); pointer-events: none; display: none; z-index: 20;
+}
+.tl-tip {
+  position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--paper); font-size: 9px;
+  padding: 2px 5px; border-radius: 3px; white-space: nowrap;
+}
+
+.events-list { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.event-item {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid var(--ruled); border-radius: 5px;
+  padding: 7px 10px;
+}
+.event-icon { font-size: 15px; width: 22px; text-align: center; }
+.event-desc { flex: 1; font-size: 11px; }
+.event-del {
+  background: none; border: none; font-size: 13px; cursor: pointer;
+  color: #c0392b; opacity: 0.55; padding: 2px 4px;
+}
+
+.field-row { display: flex; gap: 10px; }
+.field-group { flex: 1; }
+.score-row { display: flex; gap: 4px; flex-wrap: wrap; }
+.score-btn {
+  flex: 1; min-width: 22px; padding: 7px 2px; text-align: center;
+  border: 1.5px solid var(--ruled); border-radius: 5px; cursor: pointer;
+  font-family: 'DM Mono', monospace; font-size: 11px; background: var(--paper);
+  transition: all 0.15s;
+}
+.score-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.duration-field { display: flex; align-items: center; gap: 6px; }
+.duration-field input {
+  width: 52px; padding: 7px; border: 1.5px solid var(--ruled); border-radius: 5px;
+  font-family: 'DM Mono', monospace; font-size: 13px; background: var(--paper);
+  text-align: center; color: var(--ink);
+}
+.duration-field span { font-size: 11px; opacity: 0.5; }
+.remarks-field {
+  width: 100%; padding: 9px; border: 1.5px solid var(--ruled); border-radius: 5px;
+  font-family: 'DM Mono', monospace; font-size: 12px; background: var(--paper);
+  color: var(--ink); resize: none; min-height: 60px;
+}
+.save-btn {
+  width: 100%; padding: 13px; background: var(--ink); color: var(--paper);
+  border: none; border-radius: 8px; font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase; cursor: pointer;
+}
+.clear-btn {
+  padding: 7px 12px; background: none; border: 1px solid #c0392b;
+  border-radius: 5px; color: #c0392b; font-family: 'DM Mono', monospace;
+  font-size: 10px; cursor: pointer; letter-spacing: 1px;
+}
+
+/* MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(28,28,46,0.6);
+  z-index: 500; display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-sheet {
+  background: var(--paper); width: 100%; max-width: 480px;
+  border-radius: 14px 14px 0 0; padding: 20px 18px 36px;
+  transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.32,0.72,0,1);
+}
+.modal-overlay.open .modal-sheet { transform: translateY(0); }
+.modal-handle { width: 36px; height: 3px; background: var(--ruled); border-radius: 2px; margin: 0 auto 16px; }
+.modal-title { font-family: 'DM Serif Display', serif; font-size: 17px; margin-bottom: 14px; }
+.med-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.med-opt {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1.5px solid var(--ruled); border-radius: 7px; padding: 10px 12px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.med-opt.selected { border-color: var(--pill); background: #f5f0fa; }
+.med-opt-name { font-size: 13px; font-weight: 500; }
+.med-qty { display: flex; align-items: center; gap: 8px; }
+.med-qty button {
+  width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--ruled);
+  background: var(--paper); font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.med-qty span { font-size: 13px; min-width: 20px; text-align: center; }
+.modal-confirm {
+  width: 100%; padding: 12px; background: var(--ink); color: var(--paper);
+  border: none; border-radius: 7px; font-family: 'DM Mono', monospace;
+  font-size: 12px; letter-spacing: 1px; cursor: pointer;
+}
+.modal-cancel {
+  width: 100%; padding: 8px; background: none; border: none;
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink);
+  opacity: 0.45; cursor: pointer; margin-top: 6px; letter-spacing: 1px;
+}
+
+/* PRINT VIEW */
+.print-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.print-top .week-nav { flex: 1; margin-bottom: 0; }
+.print-btn {
+  padding: 9px 14px; background: var(--accent); color: white;
+  border: none; border-radius: 6px; font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+  white-space: nowrap;
+}
+.print-scroll { overflow-x: auto; }
+
+/* TABLE */
+.pt {
+  width: 100%; border-collapse: collapse;
+  font-size: 8px; font-family: 'DM Mono', monospace; table-layout: fixed;
+}
+.pt th, .pt td { border: 0.5px solid #aaa; padding: 2px; vertical-align: middle; }
+.pt thead th { background: var(--ink); color: white; text-align: center; font-size: 6px; letter-spacing: 0.5px; }
+.pt tbody .date-cell {
+  font-family: 'DM Serif Display', serif; font-size: 8px;
+  text-align: center; width: 36px;
+}
+.pt tbody .hour-cell { height: 32px; padding: 0; position: relative; width: calc((100% - 36px - 64px)/24); }
+.pt tbody .meta-cell { font-size: 7px; width: 64px; vertical-align: top; padding: 2px; }
+.pt-seg {
+  position: absolute; top: 0; bottom: 0;
+}
+.pt-seg.sleeping {
+  background: repeating-linear-gradient(45deg, #2d6a8f 0px, #2d6a8f 1.5px, rgba(45,106,143,0.2) 1.5px, rgba(45,106,143,0.2) 5px);
+}
+.pt-seg.awake {
+  border-top: 1.5px solid #2d6a8f; border-bottom: 1.5px solid #2d6a8f; background: transparent;
+}
+.pt-ev { position: absolute; font-size: 10px; transform: translateX(-50%); }
+.pt-ev.top { top: 1px; }
+.pt-ev.bottom { bottom: 1px; }
+.pt-ev.center { top: 50%; transform: translate(-50%, -50%); }
+.pt-title { font-family: 'DM Serif Display', serif; font-size: 15px; text-align: center; margin-bottom: 4px; }
+.pt-subtitle { font-size: 8px; text-align: center; opacity: 0.5; margin-bottom: 8px; letter-spacing: 1px; }
+.pt-legend { font-size: 7px; text-align: right; padding: 3px; opacity: 0.5; }
+
+.data-btn {
+  width: 100%; padding: 12px; background: var(--ink); color: var(--paper);
+  border: none; border-radius: 7px; font-family: 'DM Mono', monospace;
+  font-size: 11px; letter-spacing: 1px; cursor: pointer; text-align: center;
+}
+.export-btn { background: var(--accent); }
+.import-btn { background: #4a7c59; color: var(--paper); border-radius: 7px; padding: 12px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; }
+
+@media print {
+  body { background: white; }
+  header, nav, .view:not(#view-print), .print-top { display: none !important; }
+  #view-print { display: block !important; padding: 8mm; }
+  .print-scroll { overflow: visible; }
+  .pt { width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Agenda du Sommeil</h1>
+  <span>Journal</span>
+</header>
+
+<nav>
+  <button class="active" onclick="showView('week')">Semaine</button>
+  <button onclick="showView('edit')">Saisie</button>
+  <button onclick="showView('print')">Imprimer</button>
+  <button onclick="showView('data')">Données</button>
+</nav>
+
+<!-- WEEK VIEW -->
+<div id="view-week" class="view active">
+  <div class="week-nav">
+    <button class="arrow-btn" onclick="changeWeek(-1)">‹</button>
+    <div class="week-label">
+      <div id="week-title"></div>
+      <small id="week-range"></small>
+    </div>
+    <button class="arrow-btn" onclick="changeWeek(1)">›</button>
+  </div>
+  <div class="day-list" id="day-list"></div>
+</div>
+
+<!-- EDIT VIEW -->
+<div id="view-edit" class="view">
+  <div class="edit-header">
+    <button class="back-btn" onclick="showView('week')">← Retour</button>
+    <div class="edit-title" id="edit-title"></div>
+  </div>
+  <div class="entry-form">
+
+    <div>
+      <div class="section-label">Mode de saisie</div>
+      <div class="tool-bar">
+        <button class="tool-btn active" data-tool="bedtime" onclick="selectTool(this)">
+          <span class="ti">↓</span><span class="tn">Couché</span>
+        </button>
+        <button class="tool-btn" data-tool="wakeup" onclick="selectTool(this)">
+          <span class="ti">↑</span><span class="tn">Levé</span>
+        </button>
+        <button class="tool-btn" data-tool="sleeping" onclick="selectTool(this)">
+          <span class="ti">▨</span><span class="tn">Endormi</span>
+        </button>
+        <button class="tool-btn" data-tool="awake" onclick="selectTool(this)">
+          <span class="ti">□</span><span class="tn">Éveillé</span>
+        </button>
+        <button class="tool-btn" data-tool="wc" onclick="selectTool(this)">
+          <span class="ti">🚽</span><span class="tn">WC</span>
+        </button>
+        <button class="tool-btn" data-tool="med" onclick="selectTool(this)">
+          <span class="ti">💊</span><span class="tn">Médic.</span>
+        </button>
+        <button class="tool-btn" data-tool="som" onclick="selectTool(this)">
+          <span class="ti" style="font-family:serif;font-weight:bold;font-size:15px;">S</span><span class="tn">Somno.</span>
+        </button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Timeline 24h — <span id="tl-date-label"></span></div>
+      <div class="timeline-container" id="timeline">
+        <div class="tl-hours-row" id="tl-hours"></div>
+        <div class="tl-grid" id="tl-grid">
+          <div class="tl-cursor" id="tl-cursor"><div class="tl-tip" id="tl-tip"></div></div>
+        </div>
+      </div>
+      <div style="font-size:9px;opacity:0.4;text-align:center;margin-top:4px;">
+        Appuyez (point) ou glissez (plage) selon le mode
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Événements</div>
+      <div class="events-list" id="events-list"></div>
+      <button class="clear-btn" onclick="clearTimeline()" style="margin-top:8px;">Effacer tout</button>
+    </div>
+
+    <div>
+      <div class="section-label">Évaluation</div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="section-label" style="margin-bottom:5px;">Qualité du sommeil</div>
+          <div class="score-row" id="quality-scores"></div>
+        </div>
+        <div class="field-group">
+          <div class="section-label" style="margin-bottom:5px;">Forme de la journée</div>
+          <div class="score-row" id="form-scores"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Durée du sommeil</div>
+      <div class="duration-field">
+        <input type="number" id="dur-h" min="0" max="24" placeholder="0" inputmode="numeric">
+        <span>h</span>
+        <input type="number" id="dur-m" min="0" max="59" placeholder="00" inputmode="numeric">
+        <span>min</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Traitements &amp; remarques</div>
+      <textarea class="remarks-field" id="remarks" placeholder="Notes libres…" rows="3"></textarea>
+    </div>
+
+    <button class="save-btn" id="save-btn" onclick="saveDay()">Enregistrer cette nuit</button>
+  </div>
+</div>
+
+<!-- PRINT VIEW -->
+<div id="view-print" class="view">
+  <div class="print-top">
+    <div class="week-nav" style="flex:1;margin-bottom:0;">
+      <button class="arrow-btn" onclick="changePrintWeek(-1)">‹</button>
+      <div class="week-label">
+        <div id="print-week-title"></div>
+        <small id="print-week-range"></small>
+      </div>
+      <button class="arrow-btn" onclick="changePrintWeek(1)">›</button>
+    </div>
+    <button class="print-btn" onclick="window.print()">🖨 Imprimer</button>
+  </div>
+  <div class="print-scroll" id="print-scroll"></div>
+</div>
+
+<!-- DATA VIEW -->
+<div id="view-data" class="view">
+  <div style="font-family:'DM Serif Display',serif;font-size:20px;margin-bottom:18px;">Mes données</div>
+
+  <div style="display:flex;flex-direction:column;gap:14px;">
+
+    <!-- EXPORT -->
+    <div style="border:1px solid var(--ruled);border-radius:8px;padding:16px;">
+      <div class="section-label">Exporter</div>
+      <p style="font-size:12px;opacity:0.65;margin-bottom:12px;line-height:1.6;">Télécharge toutes tes données en fichier JSON. Garde-le en lieu sûr — il te permettra de tout réimporter si nécessaire.</p>
+      <button class="data-btn export-btn" onclick="exportData()">⬇ Télécharger agenda_sommeil.json</button>
+    </div>
+
+    <!-- IMPORT -->
+    <div style="border:1px solid var(--ruled);border-radius:8px;padding:16px;">
+      <div class="section-label">Importer</div>
+      <p style="font-size:12px;opacity:0.65;margin-bottom:12px;line-height:1.6;">Charge un fichier JSON exporté précédemment. Les données existantes seront <strong>fusionnées</strong> (les nuits déjà saisies ne seront pas écrasées sauf si elles sont aussi dans le fichier importé).</p>
+      <label class="data-btn import-btn" style="display:block;text-align:center;cursor:pointer;">
+        ⬆ Choisir un fichier JSON
+        <input type="file" accept=".json" id="import-file" style="display:none;" onchange="importData(event)">
+      </label>
+      <div id="import-status" style="margin-top:10px;font-size:11px;display:none;"></div>
+    </div>
+
+    <!-- STATS -->
+    <div style="border:1px solid var(--ruled);border-radius:8px;padding:16px;">
+      <div class="section-label">Résumé</div>
+      <div id="data-stats" style="font-size:12px;line-height:2;"></div>
+    </div>
+
+    <!-- DANGER -->
+    <div style="border:1px solid #e8b4b4;border-radius:8px;padding:16px;background:#fff8f8;">
+      <div class="section-label" style="color:#c0392b;">Zone de danger</div>
+      <p style="font-size:12px;opacity:0.65;margin-bottom:12px;line-height:1.6;">Efface définitivement toutes les données enregistrées sur cet appareil.</p>
+      <button class="data-btn" style="background:none;border:1.5px solid #c0392b;color:#c0392b;" onclick="clearAllData()">🗑 Effacer toutes les données</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- MED MODAL -->
+<div class="modal-overlay" id="med-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">💊 Médicament</div>
+    <div class="section-label" style="margin-bottom:10px;">Sélectionner &amp; quantité</div>
+    <div class="med-options" id="med-options"></div>
+    <button class="modal-confirm" onclick="confirmMed()">Confirmer</button>
+    <button class="modal-cancel" onclick="closeMedModal()">Annuler</button>
+  </div>
+</div>
+
+<script>
+const MEDS = ['Quviviq','Imovan','Sirdalud'];
+// 24h window starting 20h
+const HOURS = [20,21,22,23,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
+const FR_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+const FR_MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+
+let data = {};
+try { data = JSON.parse(localStorage.getItem('sleep-diary') || '{}'); } catch(e) {}
+
+let weekOffset = 0;
+let printOffset = 0;
+let editDate = null;
+let currentTool = 'bedtime';
+let tempSegments = [];
+let tempEvents = [];
+let isDragging = false;
+let dragStart = null;
+let dragEnd = null;
+let medPending = null;
+
+// ── Helpers ────────────────────────────────
+function fmtDate(d) { return d.toISOString().slice(0,10); }
+function todayStr() { return fmtDate(new Date()); }
+function parseDate(s) { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function addDays(s,n) { const d=parseDate(s); d.setDate(d.getDate()+n); return fmtDate(d); }
+function getMonday(off=0) {
+  const now=new Date(); const day=now.getDay()||7;
+  const m=new Date(now); m.setDate(now.getDate()-day+1+off*7); return fmtDate(m);
+}
+function hLabel(h) { return String(h).padStart(2,'0')+'h'; }
+function hIdx(h) { return HOURS.indexOf(h); }
+function hToX(h) { return (hIdx(h)/24)*100; }
+function xToH(frac) {
+  const i=Math.round(frac*24);
+  return HOURS[Math.max(0,Math.min(23,i))];
+}
+function getXFrac(container, clientX) {
+  const r=container.getBoundingClientRect();
+  return Math.max(0,Math.min(1,(clientX-r.left)/r.width));
+}
+function evIcon(ev) {
+  if(ev.type==='bedtime') return '↓';
+  if(ev.type==='wakeup') return '↑';
+  if(ev.type==='wc') return '🚽';
+  if(ev.type==='med') return '💊';
+  if(ev.type==='som') return 'S';
+  return '•';
+}
+function save() { localStorage.setItem('sleep-diary', JSON.stringify(data)); }
+
+// ── Init ───────────────────────────────────
+function init() {
+  buildHours(); buildScores('quality-scores','quality'); buildScores('form-scores','form'); buildMedOpts();
+  bindTimeline();
+  renderWeek(); setEditDate(todayStr());
+}
+
+function buildHours() {
+  const row=document.getElementById('tl-hours');
+  HOURS.forEach(h=>{
+    const el=document.createElement('div'); el.className='hl';
+    el.textContent=h%3===0?hLabel(h):''; row.appendChild(el);
+  });
+}
+function buildScores(id,key) {
+  const c=document.getElementById(id);
+  for(let i=1;i<=10;i++){
+    const b=document.createElement('button'); b.className='score-btn';
+    b.textContent=i; b.dataset.key=key;
+    b.onclick=()=>{ c.querySelectorAll('.score-btn').forEach(x=>x.classList.remove('active')); b.classList.add('active'); };
+    c.appendChild(b);
+  }
+}
+function buildMedOpts() {
+  const c=document.getElementById('med-options');
+  MEDS.forEach(med=>{
+    const d=document.createElement('div'); d.className='med-opt'; d.dataset.med=med;
+    d.innerHTML=`<span class="med-opt-name">${med}</span>
+      <div class="med-qty">
+        <button onclick="adjMed('${med}',-1,event)">−</button>
+        <span id="qty-${med}">0</span>
+        <button onclick="adjMed('${med}',1,event)">+</button>
+      </div>`;
+    d.onclick=e=>{ if(e.target.tagName==='BUTTON')return; d.classList.toggle('selected'); };
+    c.appendChild(d);
+  });
+}
+
+// ── Views ──────────────────────────────────
+function showView(v) {
+  document.querySelectorAll('.view').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach((el,i)=>{
+    el.classList.toggle('active',['week','edit','print','data'][i]===v);
+  });
+  document.getElementById('view-'+v).classList.add('active');
+  if(v==='week') renderWeek();
+  if(v==='print') renderPrint();
+  if(v==='data') renderDataStats();
+}
+function changeWeek(d){ weekOffset+=d; renderWeek(); }
+function changePrintWeek(d){ printOffset+=d; renderPrint(); }
+
+// ── Week view ──────────────────────────────
+function renderWeek() {
+  const mon=getMonday(weekOffset);
+  const sun=addDays(mon,6);
+  const dm=parseDate(mon),ds=parseDate(sun);
+  document.getElementById('week-title').textContent=`Sem. du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]}`;
+  document.getElementById('week-range').textContent=`${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} → ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}`;
+  const list=document.getElementById('day-list');
+  list.innerHTML='';
+  for(let i=0;i<7;i++){
+    const ds2=addDays(mon,i); const d=parseDate(ds2); const dd=data[ds2];
+    const card=document.createElement('div');
+    card.className='day-card'+(dd?' has-data':'');
+    card.innerHTML=`<div class="day-card-header">
+      <span class="dname">${FR_DAYS[d.getDay()]}</span>
+      <span class="ddate">${d.getDate()} ${FR_MONTHS[d.getMonth()]}</span>
+      <span class="dcheck">${dd?'✓':''}</span>
+    </div><div class="day-mini" id="mini-${ds2}"></div>`;
+    card.onclick=()=>{ setEditDate(ds2); showView('edit'); };
+    list.appendChild(card);
+    renderMini(ds2);
+  }
+}
+
+function renderMini(dateStr) {
+  const c=document.getElementById('mini-'+dateStr);
+  if(!c) return; c.innerHTML='';
+  const dd=data[dateStr]; if(!dd) return;
+  paintTL(c,dd.segments||[],dd.events||[],true);
+}
+
+// ── Edit view ──────────────────────────────
+function setEditDate(dateStr) {
+  editDate=dateStr;
+  const d=parseDate(dateStr);
+  document.getElementById('edit-title').textContent=`Nuit du ${d.getDate()} ${FR_MONTHS[d.getMonth()]}`;
+  document.getElementById('tl-date-label').textContent=`${d.getDate()} ${FR_MONTHS[d.getMonth()]}`;
+  const dd=data[dateStr]||{};
+  tempSegments=JSON.parse(JSON.stringify(dd.segments||[]));
+  tempEvents=JSON.parse(JSON.stringify(dd.events||[]));
+  setScoreVal('quality-scores', dd.quality);
+  setScoreVal('form-scores', dd.form);
+  document.getElementById('dur-h').value=dd.durH||'';
+  document.getElementById('dur-m').value=dd.durM||'';
+  document.getElementById('remarks').value=dd.remarks||'';
+  renderTL(); renderEvList();
+}
+function setScoreVal(id,val) {
+  document.querySelectorAll(`#${id} .score-btn`).forEach(b=>b.classList.toggle('active',b.textContent==val));
+}
+function selectTool(btn) {
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); currentTool=btn.dataset.tool;
+}
+
+// ── Timeline rendering ─────────────────────
+function renderTL() {
+  const grid=document.getElementById('tl-grid');
+  Array.from(grid.children).forEach(c=>{ if(!c.classList.contains('tl-cursor'))c.remove(); });
+  paintTL(grid,tempSegments,tempEvents,false);
+}
+
+function paintTL(container, segments, events, mini) {
+  segments.forEach(seg=>{
+    const el=document.createElement('div');
+    el.className=`tl-segment ${seg.type}`;
+    const i1=hIdx(seg.startH), i2=hIdx(seg.endH);
+    const x1=(i1/24)*100, x2=(i2/24)*100;
+    el.style.left=x1+'%'; el.style.width=(x2-x1)+'%';
+    container.appendChild(el);
+  });
+  events.forEach(ev=>{
+    const el=document.createElement('div');
+    let cls='tl-event ';
+    if(ev.type==='bedtime') cls+='bedtime';
+    else if(ev.type==='wakeup') cls+='wakeup';
+    else cls+='mid';
+    el.className=cls;
+    el.style.left=hToX(ev.hour)+'%';
+    if(ev.type==='som'){
+      el.style.fontFamily='serif';
+      el.style.fontWeight='bold';
+      el.style.fontSize=mini?'10px':'13px';
+      el.style.color='#c0832b';
+      el.style.background='rgba(255,255,255,0.85)';
+      el.style.borderRadius='3px';
+      el.style.padding='0 2px';
+      el.style.lineHeight='1.2';
+    }
+    el.textContent=evIcon(ev);
+    if(!mini) el.title=`${evIcon(ev)} ${hLabel(ev.hour)}`;
+    container.appendChild(el);
+  });
+}
+
+function renderEvList() {
+  const list=document.getElementById('events-list');
+  const all=[
+    ...tempSegments.map((s,i)=>({...s,_k:'seg',_i:i,_sort:hIdx(s.startH)})),
+    ...tempEvents.map((e,i)=>({...e,_k:'ev',_i:i,_sort:hIdx(e.hour)}))
+  ].sort((a,b)=>a._sort-b._sort);
+
+  if(!all.length){ list.innerHTML='<div style="font-size:11px;opacity:0.4;padding:8px 0;">Aucun événement</div>'; return; }
+  list.innerHTML='';
+  all.forEach(item=>{
+    const div=document.createElement('div'); div.className='event-item';
+    let icon='',desc='';
+    if(item._k==='seg'){
+      icon=item.type==='sleeping'?'▨':'□';
+      desc=`${item.type==='sleeping'?'Endormi':'Éveillé couché'} : ${hLabel(item.startH)} → ${hLabel(item.endH)}`;
+    } else {
+      icon=evIcon(item);
+      const names={bedtime:'Couché',wakeup:'Levé',wc:'WC',med:'Médicament',som:'Somnolence'};
+      desc=names[item.type]||item.type;
+      if(item.type==='med'&&item.meds){
+        const parts=Object.entries(item.meds).filter(([,q])=>q>0).map(([m,q])=>`${m}×${q}`);
+        if(parts.length) desc+=': '+parts.join(', ');
+      }
+      desc+=` à ${hLabel(item.hour)}`;
+    }
+    const somStyle=item.type==='som'?'style="font-family:serif;font-weight:bold;color:#c0832b;"':'';
+    div.innerHTML=`<span class="event-icon" ${somStyle}>${icon}</span><span class="event-desc">${desc}</span><button class="event-del">✕</button>`;
+    div.querySelector('.event-del').onclick=()=>{
+      if(item._k==='seg') tempSegments.splice(item._i,1);
+      else tempEvents.splice(item._i,1);
+      renderTL(); renderEvList();
+    };
+    list.appendChild(div);
+  });
+}
+
+function clearTimeline(){
+  if(!confirm('Effacer tous les événements ?')) return;
+  tempSegments=[]; tempEvents=[]; renderTL(); renderEvList();
+}
+
+// ── Timeline interaction ───────────────────
+function bindTimeline() {
+  const tl=document.getElementById('timeline');
+  tl.addEventListener('touchstart', e=>{ e.preventDefault(); tlStart(e.touches[0].clientX); },{passive:false});
+  tl.addEventListener('touchmove', e=>{ e.preventDefault(); tlMove(e.touches[0].clientX); },{passive:false});
+  tl.addEventListener('touchend', e=>{ e.preventDefault(); tlEnd(); },{passive:false});
+  tl.addEventListener('mousedown', e=>tlStart(e.clientX));
+  tl.addEventListener('mousemove', e=>tlMove(e.clientX));
+  tl.addEventListener('mouseup', e=>tlEnd());
+  tl.addEventListener('mouseleave', e=>{ isDragging=false; hideCur(); });
+}
+
+function tlStart(clientX) {
+  isDragging=true;
+  const tl=document.getElementById('timeline');
+  dragStart=xToH(getXFrac(tl,clientX));
+  dragEnd=null;
+  showCur(clientX);
+  if(currentTool==='med'){ isDragging=false; openMedModal(dragStart); }
+  else if(['bedtime','wakeup','wc','som'].includes(currentTool)){
+    isDragging=false; addPtEv(currentTool,dragStart); hideCur();
+  }
+}
+function tlMove(clientX) {
+  showCur(clientX);
+  if(!isDragging) return;
+  const tl=document.getElementById('timeline');
+  dragEnd=xToH(getXFrac(tl,clientX));
+}
+function tlEnd() {
+  if(isDragging && ['sleeping','awake'].includes(currentTool)){
+    const endH=dragEnd!==null?dragEnd:dragStart;
+    addSeg(currentTool,dragStart,endH);
+  }
+  isDragging=false; dragStart=null; dragEnd=null; hideCur();
+}
+
+function showCur(clientX) {
+  const tl=document.getElementById('timeline');
+  const frac=getXFrac(tl,clientX);
+  const h=xToH(frac);
+  const cur=document.getElementById('tl-cursor');
+  const tip=document.getElementById('tl-tip');
+  cur.style.display='block'; cur.style.left=(frac*100)+'%';
+  tip.textContent=hLabel(h);
+}
+function hideCur(){ document.getElementById('tl-cursor').style.display='none'; }
+
+function addPtEv(type,hour){ tempEvents.push({type,hour}); renderTL(); renderEvList(); }
+function addSeg(type,h1,h2){
+  const i1=hIdx(h1),i2=hIdx(h2);
+  if(i1===i2) return;
+  const startH=HOURS[Math.min(i1,i2)], endH=HOURS[Math.max(i1,i2)];
+  tempSegments.push({type,startH,endH});
+  renderTL(); renderEvList();
+}
+
+// ── Med modal ──────────────────────────────
+function openMedModal(hour){
+  medPending={hour};
+  MEDS.forEach(m=>{ document.getElementById('qty-'+m).textContent=0; document.querySelector(`[data-med="${m}"]`).classList.remove('selected'); });
+  document.getElementById('med-modal').classList.add('open');
+}
+function closeMedModal(){ document.getElementById('med-modal').classList.remove('open'); medPending=null; }
+function adjMed(med,d,e){
+  e.stopPropagation();
+  const el=document.getElementById('qty-'+med);
+  const n=Math.max(0,(parseInt(el.textContent)||0)+d);
+  el.textContent=n;
+  document.querySelector(`[data-med="${med}"]`).classList.toggle('selected',n>0);
+}
+function confirmMed(){
+  const meds={};
+  MEDS.forEach(m=>{ const q=parseInt(document.getElementById('qty-'+m).textContent)||0; if(q>0)meds[m]=q; });
+  if(!Object.keys(meds).length){ closeMedModal(); return; }
+  tempEvents.push({type:'med',hour:medPending.hour,meds});
+  renderTL(); renderEvList(); closeMedModal();
+}
+document.getElementById('med-modal').addEventListener('click',function(e){ if(e.target===this)closeMedModal(); });
+
+// ── Save ───────────────────────────────────
+function saveDay(){
+  if(!editDate) return;
+  const quality=document.querySelector('#quality-scores .score-btn.active')?.textContent||null;
+  const form=document.querySelector('#form-scores .score-btn.active')?.textContent||null;
+  data[editDate]={
+    segments:tempSegments, events:tempEvents,
+    quality:quality?Number(quality):null, form:form?Number(form):null,
+    durH:document.getElementById('dur-h').value||null,
+    durM:document.getElementById('dur-m').value||null,
+    remarks:document.getElementById('remarks').value
+  };
+  save();
+  const btn=document.getElementById('save-btn');
+  const orig=btn.textContent;
+  btn.textContent='✓ Enregistré'; btn.style.background='#27ae60';
+  setTimeout(()=>{ btn.textContent=orig; btn.style.background=''; },1800);
+  renderWeek();
+}
+
+// ── Print view ─────────────────────────────
+function renderPrint(){
+  const mon=getMonday(printOffset);
+  const sun=addDays(mon,6);
+  const dm=parseDate(mon),ds=parseDate(sun);
+  document.getElementById('print-week-title').textContent=`Sem. du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]}`;
+  document.getElementById('print-week-range').textContent=`${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} → ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}`;
+  document.getElementById('print-scroll').innerHTML=buildPrintTable(mon);
+}
+
+function buildPrintTable(monday) {
+  const dm=parseDate(monday), ds=parseDate(addDays(monday,6));
+  let html=`<div class="pt-title">Agenda du Sommeil</div>
+  <div class="pt-subtitle">${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} — ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}</div>
+  <table class="pt"><thead><tr>
+    <th style="width:36px;">Date</th>
+    ${HOURS.map(h=>`<th>${h%3===0?String(h).padStart(2,'0')+'h':''}</th>`).join('')}
+    <th style="width:64px;">Notes</th>
+  </tr></thead><tbody>`;
+
+  for(let i=0;i<7;i++){
+    const dateStr=addDays(monday,i);
+    const d=parseDate(dateStr);
+    const dd=data[dateStr]||{};
+    const segs=dd.segments||[], evs=dd.events||[];
+
+    // Build inner timeline HTML for a single wide cell spanning all hours
+    let tlHtml='<td colspan="24" style="padding:0;height:32px;position:relative;">';
+    // segments
+    segs.forEach(seg=>{
+      const i1=hIdx(seg.startH),i2=hIdx(seg.endH);
+      const x1=(i1/24)*100, x2=(i2/24)*100;
+      const w=x2-x1;
+      if(seg.type==='sleeping'){
+        tlHtml+=`<div class="pt-seg sleeping" style="left:${x1}%;width:${w}%;"></div>`;
+      } else {
+        tlHtml+=`<div class="pt-seg awake" style="left:${x1}%;width:${w}%;"></div>`;
+      }
+    });
+    // events
+    evs.forEach(ev=>{
+      const x=hToX(ev.hour);
+      let pos='center';
+      if(ev.type==='bedtime') pos='top';
+      if(ev.type==='wakeup') pos='bottom';
+      const somStyle=ev.type==='som'?'font-family:serif;font-weight:bold;color:#c0832b;':'';
+      tlHtml+=`<div class="pt-ev ${pos}" style="left:${x}%;${somStyle}">${evIcon(ev)}</div>`;
+    });
+    tlHtml+='</td>';
+
+    // meta
+    const medParts=evs.filter(e=>e.type==='med').map(e=>
+      Object.entries(e.meds||{}).filter(([,q])=>q>0).map(([m,q])=>`${m}×${q}`).join(',')
+    ).filter(Boolean);
+    const meta=`
+      ${dd.quality!=null?`Q:${dd.quality}/10`:''} ${dd.form!=null?`F:${dd.form}/10`:''}<br>
+      ${(dd.durH||dd.durM)?`${dd.durH||0}h${String(dd.durM||0).padStart(2,'0')}`:''}<br>
+      ${medParts.length?`<span style="color:#6b4f8f;font-size:6px;">${medParts.join('; ')}</span>`:''}
+      ${dd.remarks?`<em style="font-size:6px;">${dd.remarks}</em>`:''}`;
+
+    html+=`<tr>
+      <td class="date-cell">${FR_DAYS[d.getDay()].slice(0,3)}<br><span style="font-size:7px;">${d.getDate()}/${d.getMonth()+1}</span></td>
+      ${tlHtml}
+      <td class="meta-cell">${meta}</td>
+    </tr>`;
+  }
+
+  html+=`</tbody><tfoot><tr><td colspan="26" class="pt-legend">
+    ↓ Couché &nbsp; ↑ Levé &nbsp; 🚽 WC &nbsp; 💊 Médicament &nbsp; ▨ Endormi &nbsp; □ Éveillé couché &nbsp; <span style="font-family:serif;font-weight:bold;color:#c0832b;">S</span> Somnolence
+  </td></tr></tfoot></table>`;
+  return html;
+}
+
+// ── Export / Import / Stats ────────────────
+function exportData() {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = todayStr();
+  a.href = url; a.download = `agenda_sommeil_${today}.json`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('import-status');
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Format invalide');
+      const before = Object.keys(data).length;
+      // Merge: imported data wins for same dates
+      data = {...data, ...imported};
+      save();
+      const after = Object.keys(data).length;
+      const added = after - before;
+      status.style.display = 'block';
+      status.style.color = '#27ae60';
+      status.textContent = `✓ Importé — ${Object.keys(imported).length} nuit(s) dans le fichier, ${added} nouvelle(s) ajoutée(s).`;
+      renderDataStats();
+      renderWeek();
+    } catch(err) {
+      status.style.display = 'block';
+      status.style.color = '#c0392b';
+      status.textContent = '✕ Fichier invalide. Vérifie qu\'il s\'agit bien d\'un export de cet agenda.';
+    }
+    // Reset input so same file can be re-imported
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function clearAllData() {
+  const n = Object.keys(data).length;
+  if (!confirm(`Effacer ${n} nuit(s) enregistrée(s) ? Cette action est irréversible.`)) return;
+  data = {}; save(); renderDataStats(); renderWeek();
+}
+
+function renderDataStats() {
+  const el = document.getElementById('data-stats');
+  const keys = Object.keys(data).sort();
+  if (!keys.length) { el.innerHTML = '<span style="opacity:0.4;">Aucune donnée enregistrée.</span>'; return; }
+  const first = keys[0], last = keys[keys.length-1];
+  const qualities = keys.map(k=>data[k].quality).filter(Boolean);
+  const avgQ = qualities.length ? (qualities.reduce((a,b)=>a+b,0)/qualities.length).toFixed(1) : '—';
+  const forms = keys.map(k=>data[k].form).filter(Boolean);
+  const avgF = forms.length ? (forms.reduce((a,b)=>a+b,0)/forms.length).toFixed(1) : '—';
+  const somCount = keys.reduce((acc,k)=>acc+(data[k].events||[]).filter(e=>e.type==='som').length, 0);
+  el.innerHTML = `
+    <div>📅 <strong>${keys.length}</strong> nuit(s) enregistrée(s)</div>
+    <div>🗓 Du <strong>${first}</strong> au <strong>${last}</strong></div>
+    <div>⭐ Qualité moyenne : <strong>${avgQ}/10</strong></div>
+    <div>☀️ Forme moyenne : <strong>${avgF}/10</strong></div>
+    <div>😴 Épisodes de somnolence : <strong>${somCount}</strong></div>
+  `;
+}
+
+init();
+</script>
+</body>
+</html>
