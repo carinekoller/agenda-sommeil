@@ -461,9 +461,41 @@ nav button.active { opacity: 1; border-bottom-color: var(--accent); }
 </div>
 
 <script>
-const MEDS = ['Quviviq','Imovan','Sirdalud'];
-// 24h window starting 20h
+// 24h window starting 20h00 → expressed in minutes from 20h00 (0..1440)
+// slot = minutes since 20h00, range 0..1439, snapped to 15min
 const HOURS = [20,21,22,23,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
+
+// Convert absolute hour (0-23) + minute (0,15,30,45) to slot (minutes since 20h)
+function toSlot(hour, min=0) {
+  const absMin = hour * 60 + min;
+  const startMin = 20 * 60; // 1200
+  let slot = absMin - startMin;
+  if (slot < 0) slot += 1440;
+  return slot;
+}
+// Convert slot back to {hour, min}
+function fromSlot(slot) {
+  const absMin = (slot + 20*60) % 1440;
+  return { hour: Math.floor(absMin/60), min: absMin%60 };
+}
+// slot → x% on timeline
+function slotToX(slot) { return (slot / 1440) * 100; }
+// x fraction → slot snapped to 15min
+function xToSlot(frac) {
+  const raw = frac * 1440;
+  return Math.round(raw / 15) * 15;
+}
+// Format slot as "HHhMM"
+function slotLabel(slot) {
+  const {hour, min} = fromSlot(slot);
+  return String(hour).padStart(2,'0') + 'h' + String(min).padStart(2,'0');
+}
+// Legacy hLabel for whole hours
+function hLabel(h) { return String(h).padStart(2,'0')+'h'; }
+// slot index for sorting
+function slotIdx(slot) { return slot; }
+
+const MEDS = ['Quviviq','Imovan','Sirdalud'];
 const FR_DAYS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
 const FR_MONTHS = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
 
@@ -490,13 +522,9 @@ function getMonday(off=0) {
   const now=new Date(); const day=now.getDay()||7;
   const m=new Date(now); m.setDate(now.getDate()-day+1+off*7); return fmtDate(m);
 }
-function hLabel(h) { return String(h).padStart(2,'0')+'h'; }
-function hIdx(h) { return HOURS.indexOf(h); }
-function hToX(h) { return (hIdx(h)/24)*100; }
-function xToH(frac) {
-  const i=Math.round(frac*24);
-  return HOURS[Math.max(0,Math.min(23,i))];
-}
+function hIdx(h) { return toSlot(h,0); }
+function hToX(h) { return slotToX(toSlot(h,0)); }
+function xToH(frac) { return xToSlot(frac); } // now returns slot not hour
 function getXFrac(container, clientX) {
   const r=container.getBoundingClientRect();
   return Math.max(0,Math.min(1,(clientX-r.left)/r.width));
@@ -520,9 +548,12 @@ function init() {
 
 function buildHours() {
   const row=document.getElementById('tl-hours');
+  // Show label every 3 hours, tick every hour
   HOURS.forEach(h=>{
     const el=document.createElement('div'); el.className='hl';
-    el.textContent=h%3===0?hLabel(h):''; row.appendChild(el);
+    el.textContent=h%3===0?hLabel(h):'';
+    el.style.flex='4'; // each hour = 4 quarter slots
+    row.appendChild(el);
   });
 }
 function buildScores(id,key) {
@@ -629,8 +660,7 @@ function paintTL(container, segments, events, mini) {
   segments.forEach(seg=>{
     const el=document.createElement('div');
     el.className=`tl-segment ${seg.type}`;
-    const i1=hIdx(seg.startH), i2=hIdx(seg.endH);
-    const x1=(i1/24)*100, x2=(i2/24)*100;
+    const x1=slotToX(seg.startSlot), x2=slotToX(seg.endSlot);
     el.style.left=x1+'%'; el.style.width=(x2-x1)+'%';
     container.appendChild(el);
   });
@@ -641,7 +671,7 @@ function paintTL(container, segments, events, mini) {
     else if(ev.type==='wakeup') cls+='wakeup';
     else cls+='mid';
     el.className=cls;
-    el.style.left=hToX(ev.hour)+'%';
+    el.style.left=slotToX(ev.slot)+'%';
     if(ev.type==='som'){
       el.style.fontFamily='serif';
       el.style.fontWeight='bold';
@@ -653,7 +683,7 @@ function paintTL(container, segments, events, mini) {
       el.style.lineHeight='1.2';
     }
     el.textContent=evIcon(ev);
-    if(!mini) el.title=`${evIcon(ev)} ${hLabel(ev.hour)}`;
+    if(!mini) el.title=`${evIcon(ev)} ${slotLabel(ev.slot)}`;
     container.appendChild(el);
   });
 }
@@ -661,8 +691,8 @@ function paintTL(container, segments, events, mini) {
 function renderEvList() {
   const list=document.getElementById('events-list');
   const all=[
-    ...tempSegments.map((s,i)=>({...s,_k:'seg',_i:i,_sort:hIdx(s.startH)})),
-    ...tempEvents.map((e,i)=>({...e,_k:'ev',_i:i,_sort:hIdx(e.hour)}))
+    ...tempSegments.map((s,i)=>({...s,_k:'seg',_i:i,_sort:s.startSlot})),
+    ...tempEvents.map((e,i)=>({...e,_k:'ev',_i:i,_sort:e.slot}))
   ].sort((a,b)=>a._sort-b._sort);
 
   if(!all.length){ list.innerHTML='<div style="font-size:11px;opacity:0.4;padding:8px 0;">Aucun événement</div>'; return; }
@@ -672,7 +702,7 @@ function renderEvList() {
     let icon='',desc='';
     if(item._k==='seg'){
       icon=item.type==='sleeping'?'▨':'□';
-      desc=`${item.type==='sleeping'?'Endormi':'Éveillé couché'} : ${hLabel(item.startH)} → ${hLabel(item.endH)}`;
+      desc=`${item.type==='sleeping'?'Endormi':'Éveillé couché'} : ${slotLabel(item.startSlot)} → ${slotLabel(item.endSlot)}`;
     } else {
       icon=evIcon(item);
       const names={bedtime:'Couché',wakeup:'Levé',wc:'WC',med:'Médicament',som:'Somnolence'};
@@ -681,7 +711,7 @@ function renderEvList() {
         const parts=Object.entries(item.meds).filter(([,q])=>q>0).map(([m,q])=>`${m}×${q}`);
         if(parts.length) desc+=': '+parts.join(', ');
       }
-      desc+=` à ${hLabel(item.hour)}`;
+      desc+=` à ${slotLabel(item.slot)}`;
     }
     const somStyle=item.type==='som'?'style="font-family:serif;font-weight:bold;color:#c0832b;"':'';
     div.innerHTML=`<span class="event-icon" ${somStyle}>${icon}</span><span class="event-desc">${desc}</span><button class="event-del">✕</button>`;
@@ -714,7 +744,7 @@ function bindTimeline() {
 function tlStart(clientX) {
   isDragging=true;
   const tl=document.getElementById('timeline');
-  dragStart=xToH(getXFrac(tl,clientX));
+  dragStart=xToSlot(getXFrac(tl,clientX));
   dragEnd=null;
   showCur(clientX);
   if(currentTool==='med'){ isDragging=false; openMedModal(dragStart); }
@@ -726,12 +756,12 @@ function tlMove(clientX) {
   showCur(clientX);
   if(!isDragging) return;
   const tl=document.getElementById('timeline');
-  dragEnd=xToH(getXFrac(tl,clientX));
+  dragEnd=xToSlot(getXFrac(tl,clientX));
 }
 function tlEnd() {
   if(isDragging && ['sleeping','awake'].includes(currentTool)){
-    const endH=dragEnd!==null?dragEnd:dragStart;
-    addSeg(currentTool,dragStart,endH);
+    const endS=dragEnd!==null?dragEnd:dragStart;
+    addSeg(currentTool,dragStart,endS);
   }
   isDragging=false; dragStart=null; dragEnd=null; hideCur();
 }
@@ -739,26 +769,25 @@ function tlEnd() {
 function showCur(clientX) {
   const tl=document.getElementById('timeline');
   const frac=getXFrac(tl,clientX);
-  const h=xToH(frac);
+  const slot=xToSlot(frac);
   const cur=document.getElementById('tl-cursor');
   const tip=document.getElementById('tl-tip');
-  cur.style.display='block'; cur.style.left=(frac*100)+'%';
-  tip.textContent=hLabel(h);
+  cur.style.display='block'; cur.style.left=(slotToX(slot))+'%';
+  tip.textContent=slotLabel(slot);
 }
 function hideCur(){ document.getElementById('tl-cursor').style.display='none'; }
 
-function addPtEv(type,hour){ tempEvents.push({type,hour}); renderTL(); renderEvList(); }
-function addSeg(type,h1,h2){
-  const i1=hIdx(h1),i2=hIdx(h2);
-  if(i1===i2) return;
-  const startH=HOURS[Math.min(i1,i2)], endH=HOURS[Math.max(i1,i2)];
-  tempSegments.push({type,startH,endH});
+function addPtEv(type,slot){ tempEvents.push({type,slot}); renderTL(); renderEvList(); }
+function addSeg(type,s1,s2){
+  if(s1===s2) return;
+  const startSlot=Math.min(s1,s2), endSlot=Math.max(s1,s2);
+  tempSegments.push({type,startSlot,endSlot});
   renderTL(); renderEvList();
 }
 
 // ── Med modal ──────────────────────────────
-function openMedModal(hour){
-  medPending={hour};
+function openMedModal(slot){
+  medPending={slot};
   MEDS.forEach(m=>{ document.getElementById('qty-'+m).textContent=0; document.querySelector(`[data-med="${m}"]`).classList.remove('selected'); });
   document.getElementById('med-modal').classList.add('open');
 }
@@ -774,7 +803,7 @@ function confirmMed(){
   const meds={};
   MEDS.forEach(m=>{ const q=parseInt(document.getElementById('qty-'+m).textContent)||0; if(q>0)meds[m]=q; });
   if(!Object.keys(meds).length){ closeMedModal(); return; }
-  tempEvents.push({type:'med',hour:medPending.hour,meds});
+  tempEvents.push({type:'med',slot:medPending.slot,meds});
   renderTL(); renderEvList(); closeMedModal();
 }
 document.getElementById('med-modal').addEventListener('click',function(e){ if(e.target===this)closeMedModal(); });
@@ -812,12 +841,32 @@ function renderPrint(){
 function buildPrintTable(monday) {
   const dm=parseDate(monday), ds=parseDate(addDays(monday,6));
   let html=`<div class="pt-title">Agenda du Sommeil</div>
-  <div class="pt-subtitle">${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} — ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}</div>
-  <table class="pt"><thead><tr>
-    <th style="width:36px;">Date</th>
-    ${HOURS.map(h=>`<th>${h%3===0?String(h).padStart(2,'0')+'h':''}</th>`).join('')}
-    <th style="width:64px;">Notes</th>
-  </tr></thead><tbody>`;
+  <div class="pt-subtitle">Nuit du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} au ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}</div>
+  <table class="pt" style="table-layout:fixed;width:100%;">
+    <colgroup>
+      <col style="width:38px;">
+      <col style="width:calc(100% - 38px - 52px - 44px - 52px - 80px);">
+      <col style="width:52px;">
+      <col style="width:44px;">
+      <col style="width:52px;">
+      <col style="width:80px;">
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2" style="vertical-align:middle;">DATE</th>
+        <th style="text-align:center;padding:2px;">
+          <div style="display:flex;justify-content:space-between;padding:0 2px;font-size:6px;font-weight:normal;opacity:0.7;">
+            ${HOURS.filter(h=>h%3===0).map(h=>`<span>${String(h).padStart(2,'0')}h</span>`).join('')}
+          </div>
+          HEURES (20h → 20h)
+        </th>
+        <th style="font-size:6px;text-align:center;vertical-align:middle;">QUALITÉ<br>DU<br>SOMMEIL</th>
+        <th style="font-size:6px;text-align:center;vertical-align:middle;">DURÉE<br>DU<br>SOMMEIL</th>
+        <th style="font-size:6px;text-align:center;vertical-align:middle;">FORME<br>DE LA<br>JOURNÉE</th>
+        <th style="font-size:6px;text-align:center;vertical-align:middle;">TRAITEMENT ET<br>REMARQUES<br>PARTICULIÈRES</th>
+      </tr>
+    </thead>
+    <tbody>`;
 
   for(let i=0;i<7;i++){
     const dateStr=addDays(monday,i);
@@ -825,48 +874,59 @@ function buildPrintTable(monday) {
     const dd=data[dateStr]||{};
     const segs=dd.segments||[], evs=dd.events||[];
 
-    // Build inner timeline HTML for a single wide cell spanning all hours
-    let tlHtml='<td colspan="24" style="padding:0;height:32px;position:relative;">';
-    // segments
+    // Timeline cell
+    let tlHtml=`<td style="padding:0;height:36px;position:relative;border:0.5px solid #aaa;">`;
+    // Hour grid lines
+    HOURS.forEach((h,idx)=>{
+      const x=(idx/24)*100;
+      tlHtml+=`<div style="position:absolute;top:0;bottom:0;left:${x}%;width:0.5px;background:${h%3===0?'#999':'#ddd'};"></div>`;
+    });
+    // Segments
     segs.forEach(seg=>{
-      const i1=hIdx(seg.startH),i2=hIdx(seg.endH);
-      const x1=(i1/24)*100, x2=(i2/24)*100;
-      const w=x2-x1;
+      const x1=slotToX(seg.startSlot), x2=slotToX(seg.endSlot), w=x2-x1;
       if(seg.type==='sleeping'){
         tlHtml+=`<div class="pt-seg sleeping" style="left:${x1}%;width:${w}%;"></div>`;
       } else {
         tlHtml+=`<div class="pt-seg awake" style="left:${x1}%;width:${w}%;"></div>`;
       }
     });
-    // events
+    // Events
     evs.forEach(ev=>{
-      const x=hToX(ev.hour);
-      let pos='center';
-      if(ev.type==='bedtime') pos='top';
-      if(ev.type==='wakeup') pos='bottom';
+      const x=slotToX(ev.slot);
+      let top='50%', transform='translate(-50%,-50%)';
+      if(ev.type==='bedtime'){ top='2px'; transform='translateX(-50%)'; }
+      if(ev.type==='wakeup'){ top='auto'; transform='translateX(-50%)'; }
+      const bottom=ev.type==='wakeup'?'2px':'auto';
       const somStyle=ev.type==='som'?'font-family:serif;font-weight:bold;color:#c0832b;':'';
-      tlHtml+=`<div class="pt-ev ${pos}" style="left:${x}%;${somStyle}">${evIcon(ev)}</div>`;
+      tlHtml+=`<div style="position:absolute;left:${x}%;top:${top};bottom:${bottom};transform:${transform};font-size:9px;line-height:1;${somStyle}">${evIcon(ev)}</div>`;
     });
-    tlHtml+='</td>';
+    tlHtml+=`</td>`;
 
-    // meta
+    // Med info for remarks
     const medParts=evs.filter(e=>e.type==='med').map(e=>
-      Object.entries(e.meds||{}).filter(([,q])=>q>0).map(([m,q])=>`${m}×${q}`).join(',')
+      Object.entries(e.meds||{}).filter(([,q])=>q>0).map(([m,q])=>`${m}×${q}`).join(', ')
     ).filter(Boolean);
-    const meta=`
-      ${dd.quality!=null?`Q:${dd.quality}/10`:''} ${dd.form!=null?`F:${dd.form}/10`:''}<br>
-      ${(dd.durH||dd.durM)?`${dd.durH||0}h${String(dd.durM||0).padStart(2,'0')}`:''}<br>
-      ${medParts.length?`<span style="color:#6b4f8f;font-size:6px;">${medParts.join('; ')}</span>`:''}
-      ${dd.remarks?`<em style="font-size:6px;">${dd.remarks}</em>`:''}`;
+    const remarksContent=[
+      medParts.length?medParts.join('; '):'',
+      dd.remarks||''
+    ].filter(Boolean).join(' — ');
 
-    html+=`<tr>
-      <td class="date-cell">${FR_DAYS[d.getDay()].slice(0,3)}<br><span style="font-size:7px;">${d.getDate()}/${d.getMonth()+1}</span></td>
+    const durStr=(dd.durH!=null||dd.durM!=null)?`${dd.durH||0}h${String(dd.durM||0).padStart(2,'0')}`:'';
+
+    html+=`<tr style="height:36px;">
+      <td style="text-align:center;vertical-align:middle;font-size:8px;border:0.5px solid #aaa;padding:2px;">
+        <div style="font-family:'DM Serif Display',serif;font-size:9px;">${FR_DAYS[d.getDay()].slice(0,3)}</div>
+        <div style="font-size:7px;opacity:0.6;">${d.getDate()}/${d.getMonth()+1}</div>
+      </td>
       ${tlHtml}
-      <td class="meta-cell">${meta}</td>
+      <td style="text-align:center;vertical-align:middle;font-size:9px;border:0.5px solid #aaa;">${dd.quality!=null?dd.quality+'/10':''}</td>
+      <td style="text-align:center;vertical-align:middle;font-size:9px;border:0.5px solid #aaa;">${durStr}</td>
+      <td style="text-align:center;vertical-align:middle;font-size:9px;border:0.5px solid #aaa;">${dd.form!=null?dd.form+'/10':''}</td>
+      <td style="vertical-align:top;font-size:7px;border:0.5px solid #aaa;padding:3px;">${remarksContent}</td>
     </tr>`;
   }
 
-  html+=`</tbody><tfoot><tr><td colspan="26" class="pt-legend">
+  html+=`</tbody><tfoot><tr><td colspan="6" style="font-size:7px;padding:4px;opacity:0.5;text-align:right;border:none;">
     ↓ Couché &nbsp; ↑ Levé &nbsp; 🚽 WC &nbsp; 💊 Médicament &nbsp; ▨ Endormi &nbsp; □ Éveillé couché &nbsp; <span style="font-family:serif;font-weight:bold;color:#c0832b;">S</span> Somnolence
   </td></tr></tfoot></table>`;
   return html;
