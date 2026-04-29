@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Agenda du Sommeil</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root {
   --ink: #1c1c2e;
@@ -404,7 +405,7 @@ nav button.active { opacity: 1; border-bottom-color: var(--accent); }
       </div>
       <button class="arrow-btn" onclick="changePrintWeek(1)">›</button>
     </div>
-    <button class="print-btn" onclick="window.print()">🖨 Imprimer</button>
+    <button class="print-btn" onclick="generatePDF()">📄 Générer PDF A4</button>
   </div>
   <div class="print-scroll" id="print-scroll"></div>
 </div>
@@ -1005,6 +1006,198 @@ function renderDataStats() {
     <div>☀️ Forme moyenne : <strong>${avgF}/10</strong></div>
     <div>😴 Épisodes de somnolence : <strong>${somCount}</strong></div>
   `;
+}
+
+// ── PDF Generation ─────────────────────────
+function generatePDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  const monday = getMonday(printOffset);
+  const dm = parseDate(monday), ds = parseDate(addDays(monday, 6));
+  const pageW = 297, pageH = 210;
+  const margin = 8;
+  const usableW = pageW - margin * 2;
+  const usableH = pageH - margin * 2;
+
+  // Column widths (mm)
+  const colDate = 18;
+  const colQ = 18;
+  const colDur = 16;
+  const colF = 18;
+  const colRem = 40;
+  const colTL = usableW - colDate - colQ - colDur - colF - colRem;
+
+  // Row heights
+  const headerH = 14;
+  const rowH = (usableH - headerH - 20) / 7; // 20 for title+subtitle+legend
+
+  // Title
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('Agenda du Sommeil', pageW / 2, margin + 5, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.text(`Nuit du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} au ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}`, pageW / 2, margin + 9, { align: 'center' });
+
+  const tableTop = margin + 13;
+
+  // Header row background
+  doc.setFillColor(28, 28, 46);
+  doc.rect(margin, tableTop, usableW, headerH, 'F');
+
+  // Header texts
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(6);
+  const cx = (col, w) => col + w / 2;
+  let x = margin;
+  doc.text('DATE', cx(x, colDate), tableTop + headerH / 2 + 1, { align: 'center' });
+  x += colDate;
+
+  // Hour labels in header
+  doc.setFontSize(5);
+  HOURS.forEach((h, idx) => {
+    const hx = x + (idx / 24) * colTL;
+    if (h % 3 === 0) {
+      doc.setTextColor(255, 255, 255);
+      doc.text(String(h).padStart(2, '0') + 'h', hx, tableTop + 5, { align: 'center' });
+    }
+    // vertical tick
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(h % 3 === 0 ? 0.3 : 0.1);
+    doc.line(hx, tableTop + 7, hx, tableTop + headerH);
+  });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(6);
+  x += colTL;
+  doc.text('QUALITÉ', cx(x, colQ), tableTop + 5, { align: 'center' });
+  doc.text('SOMMEIL', cx(x, colQ), tableTop + 9, { align: 'center' });
+  x += colQ;
+  doc.text('DURÉE', cx(x, colDur), tableTop + 5, { align: 'center' });
+  doc.text('SOMMEIL', cx(x, colDur), tableTop + 9, { align: 'center' });
+  x += colDur;
+  doc.text('FORME', cx(x, colF), tableTop + 5, { align: 'center' });
+  doc.text('JOURNÉE', cx(x, colF), tableTop + 9, { align: 'center' });
+  x += colF;
+  doc.text('REMARQUES', cx(x, colRem), tableTop + 7, { align: 'center' });
+
+  // Rows
+  for (let i = 0; i < 7; i++) {
+    const dateStr = addDays(monday, i);
+    const d = parseDate(dateStr);
+    const dd = data[dateStr] || {};
+    const segs = dd.segments || [], evs = dd.events || [];
+    const rowY = tableTop + headerH + i * rowH;
+
+    // Row border
+    doc.setDrawColor(170, 170, 170);
+    doc.setLineWidth(0.3);
+    doc.setTextColor(28, 28, 46);
+
+    // Date cell
+    doc.rect(margin, rowY, colDate, rowH);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text(FR_DAYS[d.getDay()].slice(0, 3), margin + colDate / 2, rowY + rowH / 2 - 1, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.text(`${d.getDate()}/${d.getMonth() + 1}`, margin + colDate / 2, rowY + rowH / 2 + 3, { align: 'center' });
+
+    // Timeline cell
+    const tlX = margin + colDate;
+    doc.rect(tlX, rowY, colTL, rowH);
+
+    // Hour grid lines in timeline
+    HOURS.forEach((h, idx) => {
+      const lx = tlX + (idx / 24) * colTL;
+      doc.setDrawColor(h % 3 === 0 ? 180 : 225);
+      doc.setLineWidth(0.2);
+      doc.line(lx, rowY, lx, rowY + rowH);
+    });
+
+    // Segments
+    segs.forEach(seg => {
+      const x1 = tlX + (seg.startSlot / 1440) * colTL;
+      const x2 = tlX + (seg.endSlot / 1440) * colTL;
+      const w = x2 - x1;
+      if (seg.type === 'sleeping') {
+        doc.setFillColor(45, 106, 143);
+        doc.setGState && doc.setGState(new doc.GState({ opacity: 0.7 }));
+        // Draw hatching manually
+        doc.setDrawColor(45, 106, 143);
+        doc.setLineWidth(0.5);
+        for (let hx = x1; hx < x2 + rowH; hx += 2) {
+          const lx1 = Math.max(x1, hx - rowH);
+          const lx2 = Math.min(x2, hx);
+          const ly1 = lx1 === x1 ? rowY + (hx - x1) : rowY;
+          const ly2 = lx2 === x2 ? rowY + rowH - (x2 - hx + rowH) : rowY + rowH;
+          if (lx1 <= lx2) doc.line(lx1, rowY + rowH, lx2, rowY);
+        }
+        // Border
+        doc.setDrawColor(45, 106, 143);
+        doc.setLineWidth(0.5);
+        doc.rect(x1, rowY, w, rowH);
+      } else {
+        // Awake = just border top+bottom
+        doc.setDrawColor(45, 106, 143);
+        doc.setLineWidth(0.8);
+        doc.line(x1, rowY, x2, rowY);
+        doc.line(x1, rowY + rowH, x2, rowY + rowH);
+      }
+    });
+
+    // Events (text icons)
+    doc.setFontSize(7);
+    evs.forEach(ev => {
+      const ex = tlX + (ev.slot / 1440) * colTL;
+      const icon = ev.type === 'bedtime' ? '↓' : ev.type === 'wakeup' ? '↑' : ev.type === 'wc' ? 'WC' : ev.type === 'som' ? 'S' : '💊';
+      const ey = ev.type === 'bedtime' ? rowY + 3 : ev.type === 'wakeup' ? rowY + rowH - 1 : rowY + rowH / 2 + 1;
+      if (ev.type === 'som') doc.setTextColor(192, 131, 43);
+      else doc.setTextColor(28, 28, 46);
+      doc.text(icon, ex, ey, { align: 'center' });
+    });
+
+    // Quality
+    doc.setTextColor(28, 28, 46);
+    const qX = tlX + colTL;
+    doc.rect(qX, rowY, colQ, rowH);
+    if (dd.quality) { doc.setFontSize(9); doc.text(dd.quality + '/10', qX + colQ / 2, rowY + rowH / 2 + 1, { align: 'center' }); }
+
+    // Duration
+    const dX = qX + colQ;
+    doc.rect(dX, rowY, colDur, rowH);
+    const durStr = (dd.durH != null || dd.durM != null) ? `${dd.durH || 0}h${String(dd.durM || 0).padStart(2, '0')}` : '';
+    if (durStr) { doc.setFontSize(8); doc.text(durStr, dX + colDur / 2, rowY + rowH / 2 + 1, { align: 'center' }); }
+
+    // Form
+    const fX = dX + colDur;
+    doc.rect(fX, rowY, colF, rowH);
+    if (dd.form) { doc.setFontSize(9); doc.text(dd.form + '/10', fX + colF / 2, rowY + rowH / 2 + 1, { align: 'center' }); }
+
+    // Remarks
+    const rX = fX + colF;
+    doc.rect(rX, rowY, colRem, rowH);
+    const medParts = evs.filter(e => e.type === 'med').map(e =>
+      Object.entries(e.meds || {}).filter(([, q]) => q > 0).map(([m, q]) => `${m}×${q}`).join(', ')
+    ).filter(Boolean);
+    const rem = [medParts.join('; '), dd.remarks || ''].filter(Boolean).join(' ');
+    if (rem) {
+      doc.setFontSize(6);
+      doc.setTextColor(28, 28, 46);
+      const lines = doc.splitTextToSize(rem, colRem - 2);
+      doc.text(lines, rX + 1, rowY + 3);
+    }
+  }
+
+  // Legend
+  const legY = tableTop + headerH + 7 * rowH + 3;
+  doc.setFontSize(5.5);
+  doc.setTextColor(120, 120, 120);
+  doc.text('↓ Couché   ↑ Levé   WC Toilettes   💊 Médicament   ▨ Endormi   □ Éveillé couché   S Somnolence', pageW - margin, legY, { align: 'right' });
+
+  // Save
+  const filename = `agenda_sommeil_${addDays(monday, 0)}.pdf`;
+  doc.save(filename);
 }
 
 init();
