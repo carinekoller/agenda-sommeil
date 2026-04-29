@@ -270,9 +270,10 @@ nav button.active { opacity: 1; border-bottom-color: var(--accent); }
 .import-btn { background: #4a7c59; color: var(--paper); border-radius: 7px; padding: 12px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; }
 
 @media print {
+  @page { size: A4 landscape; margin: 8mm; }
   body { background: white; }
   header, nav, .view:not(#view-print), .print-top { display: none !important; }
-  #view-print { display: block !important; padding: 8mm; }
+  #view-print { display: block !important; padding: 0; }
   .print-scroll { overflow: visible; }
   .pt { width: 100%; }
 }
@@ -842,14 +843,14 @@ function buildPrintTable(monday) {
   const dm=parseDate(monday), ds=parseDate(addDays(monday,6));
   let html=`<div class="pt-title">Agenda du Sommeil</div>
   <div class="pt-subtitle">Nuit du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} au ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}</div>
-  <table class="pt" style="table-layout:fixed;width:100%;">
+  <table class="pt" style="table-layout:fixed;width:100%;border-collapse:collapse;">
     <colgroup>
-      <col style="width:38px;">
-      <col style="width:calc(100% - 38px - 52px - 44px - 52px - 80px);">
-      <col style="width:52px;">
-      <col style="width:44px;">
-      <col style="width:52px;">
-      <col style="width:80px;">
+      <col style="width:32px;">
+      <col style="width:auto;">
+      <col style="width:40px;">
+      <col style="width:36px;">
+      <col style="width:40px;">
+      <col style="width:90px;">
     </colgroup>
     <thead>
       <tr>
@@ -875,30 +876,37 @@ function buildPrintTable(monday) {
     const segs=dd.segments||[], evs=dd.events||[];
 
     // Timeline cell
-    let tlHtml=`<td style="padding:0;height:36px;position:relative;border:0.5px solid #aaa;">`;
+    let tlHtml=`<td style="padding:0;height:42px;position:relative;border:0.5px solid #aaa;overflow:hidden;">`;
+    // Hour labels at top
+    tlHtml+=`<div style="position:absolute;top:0;left:0;right:0;display:flex;height:10px;background:rgba(28,28,46,0.85);">`;
+    HOURS.forEach((h,idx)=>{
+      const x=(idx/24)*100;
+      tlHtml+=`<div style="position:absolute;left:${x}%;font-size:5px;color:white;padding-left:1px;white-space:nowrap;">${h%3===0?String(h).padStart(2,'0')+'h':''}</div>`;
+    });
+    tlHtml+=`</div>`;
     // Hour grid lines
     HOURS.forEach((h,idx)=>{
       const x=(idx/24)*100;
-      tlHtml+=`<div style="position:absolute;top:0;bottom:0;left:${x}%;width:0.5px;background:${h%3===0?'#999':'#ddd'};"></div>`;
+      tlHtml+=`<div style="position:absolute;top:10px;bottom:0;left:${x}%;width:0.5px;background:${h%3===0?'#bbb':'#e8e8e8'};"></div>`;
     });
     // Segments
     segs.forEach(seg=>{
       const x1=slotToX(seg.startSlot), x2=slotToX(seg.endSlot), w=x2-x1;
       if(seg.type==='sleeping'){
-        tlHtml+=`<div class="pt-seg sleeping" style="left:${x1}%;width:${w}%;"></div>`;
+        tlHtml+=`<div class="pt-seg sleeping" style="left:${x1}%;width:${w}%;top:10px;bottom:0;"></div>`;
       } else {
-        tlHtml+=`<div class="pt-seg awake" style="left:${x1}%;width:${w}%;"></div>`;
+        tlHtml+=`<div class="pt-seg awake" style="left:${x1}%;width:${w}%;top:10px;bottom:0;"></div>`;
       }
     });
     // Events
     evs.forEach(ev=>{
       const x=slotToX(ev.slot);
-      let top='50%', transform='translate(-50%,-50%)';
-      if(ev.type==='bedtime'){ top='2px'; transform='translateX(-50%)'; }
+      let top='55%', transform='translate(-50%,-50%)';
+      if(ev.type==='bedtime'){ top='12px'; transform='translateX(-50%)'; }
       if(ev.type==='wakeup'){ top='auto'; transform='translateX(-50%)'; }
       const bottom=ev.type==='wakeup'?'2px':'auto';
       const somStyle=ev.type==='som'?'font-family:serif;font-weight:bold;color:#c0832b;':'';
-      tlHtml+=`<div style="position:absolute;left:${x}%;top:${top};bottom:${bottom};transform:${transform};font-size:9px;line-height:1;${somStyle}">${evIcon(ev)}</div>`;
+      tlHtml+=`<div style="position:absolute;left:${x}%;top:${top};bottom:${bottom};transform:${transform};font-size:10px;line-height:1;${somStyle}">${evIcon(ev)}</div>`;
     });
     tlHtml+=`</td>`;
 
@@ -913,7 +921,7 @@ function buildPrintTable(monday) {
 
     const durStr=(dd.durH!=null||dd.durM!=null)?`${dd.durH||0}h${String(dd.durM||0).padStart(2,'0')}`:'';
 
-    html+=`<tr style="height:36px;">
+    html+=`<tr style="height:42px;">
       <td style="text-align:center;vertical-align:middle;font-size:8px;border:0.5px solid #aaa;padding:2px;">
         <div style="font-family:'DM Serif Display',serif;font-size:9px;">${FR_DAYS[d.getDay()].slice(0,3)}</div>
         <div style="font-size:7px;opacity:0.6;">${d.getDate()}/${d.getMonth()+1}</div>
