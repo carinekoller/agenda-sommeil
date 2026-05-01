@@ -1109,6 +1109,11 @@ function renderDataStats() {
 }
 
 // ── PDF Generation ─────────────────────────
+const FR_MONTHS_PDF = ['jan','fev','mar','avr','mai','jun','jul','aou','sep','oct','nov','dec'];
+const FR_DAYS_PDF = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+function pdfSafe(str) {
+  return (str||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\x00-\x7F]/g,'?');
+}
 function generatePDF() {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -1138,7 +1143,7 @@ function generatePDF() {
   doc.text('Agenda du Sommeil', pageW / 2, margin + 5, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.text(`Nuit du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} au ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}`, pageW / 2, margin + 9, { align: 'center' });
+  doc.text(`Nuit du ${dm.getDate()} ${FR_MONTHS_PDF[dm.getMonth()]} au ${ds.getDate()} ${FR_MONTHS_PDF[ds.getMonth()]} ${ds.getFullYear()}`, pageW / 2, margin + 9, { align: 'center' });
 
   const tableTop = margin + 13;
 
@@ -1170,14 +1175,14 @@ function generatePDF() {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(6);
   x += colTL;
-  doc.text('QUALITÉ', cx(x, colQ), tableTop + 5, { align: 'center' });
+  doc.text('QUALITE', cx(x, colQ), tableTop + 5, { align: 'center' });
   doc.text('SOMMEIL', cx(x, colQ), tableTop + 9, { align: 'center' });
   x += colQ;
-  doc.text('DURÉE', cx(x, colDur), tableTop + 5, { align: 'center' });
+  doc.text('DUREE', cx(x, colDur), tableTop + 5, { align: 'center' });
   doc.text('SOMMEIL', cx(x, colDur), tableTop + 9, { align: 'center' });
   x += colDur;
   doc.text('FORME', cx(x, colF), tableTop + 5, { align: 'center' });
-  doc.text('JOURNÉE', cx(x, colF), tableTop + 9, { align: 'center' });
+  doc.text('JOURNEE', cx(x, colF), tableTop + 9, { align: 'center' });
   x += colF;
   doc.text('REMARQUES', cx(x, colRem), tableTop + 7, { align: 'center' });
 
@@ -1198,7 +1203,7 @@ function generatePDF() {
     doc.rect(margin, rowY, colDate, rowH);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
-    doc.text(FR_DAYS[d.getDay()].slice(0, 3), margin + colDate / 2, rowY + rowH / 2 - 1, { align: 'center' });
+    doc.text(FR_DAYS_PDF[d.getDay()], margin + colDate / 2, rowY + rowH / 2 - 1, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
     doc.text(`${d.getDate()}/${d.getMonth() + 1}`, margin + colDate / 2, rowY + rowH / 2 + 3, { align: 'center' });
@@ -1250,11 +1255,13 @@ function generatePDF() {
     doc.setFontSize(7);
     evs.forEach(ev => {
       const ex = tlX + (ev.slot / 1440) * colTL;
-      const icon = ev.type === 'bedtime' ? '↓' : ev.type === 'wakeup' ? '↑' : ev.type === 'wc' ? 'WC' : ev.type === 'som' ? 'S' : '💊';
+      const icon = ev.type === 'bedtime' ? 'v' : ev.type === 'wakeup' ? '^' : ev.type === 'wc' ? 'WC' : ev.type === 'som' ? 'S' : 'Rx';
       const ey = ev.type === 'bedtime' ? rowY + 3 : ev.type === 'wakeup' ? rowY + rowH - 1 : rowY + rowH / 2 + 1;
-      if (ev.type === 'som') doc.setTextColor(192, 131, 43);
-      else doc.setTextColor(28, 28, 46);
+      if (ev.type === 'som') { doc.setTextColor(192, 131, 43); doc.setFont('helvetica','bold'); }
+      else if (ev.type === 'med') { doc.setTextColor(107, 79, 143); doc.setFont('helvetica','bold'); }
+      else { doc.setTextColor(28, 28, 46); doc.setFont('helvetica','normal'); }
       doc.text(icon, ex, ey, { align: 'center' });
+      doc.setFont('helvetica','normal');
     });
 
     // Quality
@@ -1278,9 +1285,9 @@ function generatePDF() {
     const rX = fX + colF;
     doc.rect(rX, rowY, colRem, rowH);
     const medParts = evs.filter(e => e.type === 'med').map(e =>
-      Object.entries(e.meds || {}).filter(([, q]) => q > 0).map(([m, q]) => `${m}×${q}`).join(', ')
+      Object.entries(e.meds || {}).filter(([, q]) => q > 0).map(([m, q]) => `${m}x${q}`).join(', ')
     ).filter(Boolean);
-    const rem = [medParts.join('; '), dd.remarks || ''].filter(Boolean).join(' ');
+    const rem = pdfSafe([medParts.join('; '), dd.remarks || ''].filter(Boolean).join(' '));
     if (rem) {
       doc.setFontSize(6);
       doc.setTextColor(28, 28, 46);
@@ -1293,7 +1300,8 @@ function generatePDF() {
   const legY = tableTop + headerH + 7 * rowH + 3;
   doc.setFontSize(5.5);
   doc.setTextColor(120, 120, 120);
-  doc.text('↓ Couché   ↑ Levé   WC Toilettes   💊 Médicament   ▨ Endormi   □ Éveillé couché   S Somnolence', pageW - margin, legY, { align: 'right' });
+  doc.setFont('helvetica', 'normal');
+  doc.text('v = Couche   ^ = Leve   WC = Toilettes   Rx = Medicament   /// = Endormi   [ ] = Eveille couche   S = Somnolence', pageW - margin, legY, { align: 'right' });
 
   // Save
   const filename = `agenda_sommeil_${addDays(monday, 0)}.pdf`;
