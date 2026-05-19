@@ -627,8 +627,9 @@ function buildMeteo() {
 function setMeteo(val) {
   document.querySelectorAll('.meteo-btn').forEach(b=>{
     b.classList.toggle('active', b.dataset.meteo===val);
-  });
+});
 }
+function buildScores(id,key) {
   const c=document.getElementById(id);
   for(let i=1;i<=10;i++){
     const b=document.createElement('button'); b.className='score-btn';
