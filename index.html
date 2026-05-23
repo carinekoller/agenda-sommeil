@@ -942,28 +942,27 @@ function buildPrintTable(monday) {
   <div class="pt-subtitle">Nuit du ${dm.getDate()} ${FR_MONTHS[dm.getMonth()]} au ${ds.getDate()} ${FR_MONTHS[ds.getMonth()]} ${ds.getFullYear()}</div>
   <table class="pt" style="table-layout:fixed;width:100%;border-collapse:collapse;">
     <colgroup>
-      <col style="width:32px;">
-      <col style="width:auto;">
-      <col style="width:40px;">
-      <col style="width:36px;">
-      <col style="width:40px;">
       <col style="width:28px;">
-      <col style="width:90px;">
+      <col style="width:auto;">
+      <col style="width:32px;">
+      <col style="width:30px;">
+      <col style="width:32px;">
+      <col style="width:28px;">
+      <col style="width:52px;">
+      <col style="width:62px;">
     </colgroup>
     <thead>
       <tr>
-        <th rowspan="2" style="vertical-align:middle;">DATE</th>
-        <th style="text-align:center;padding:2px;">
-          <div style="display:flex;justify-content:space-between;padding:0 2px;font-size:6px;font-weight:normal;opacity:0.7;">
-            ${HOURS.filter(h=>h%3===0).map(h=>`<span>${String(h).padStart(2,'0')}h</span>`).join('')}
-          </div>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;">DATE</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;padding:2px;">
           HEURES (20h → 20h)
         </th>
-        <th style="font-size:6px;text-align:center;vertical-align:middle;">QUALITÉ<br>DU<br>SOMMEIL</th>
-        <th style="font-size:6px;text-align:center;vertical-align:middle;">DURÉE<br>DU<br>SOMMEIL</th>
-        <th style="font-size:6px;text-align:center;vertical-align:middle;">FORME<br>DE LA<br>JOURNÉE</th>
-        <th style="font-size:6px;text-align:center;vertical-align:middle;">MÉTÉO<br>ÉMOT.</th>
-        <th style="font-size:6px;text-align:center;vertical-align:middle;">TRAITEMENT ET<br>REMARQUES<br>PARTICULIÈRES</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;line-height:1.3;">QUALITÉ<br>DU<br>SOMMEIL</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;line-height:1.3;">DURÉE<br>DU<br>SOMMEIL</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;line-height:1.3;">FORME<br>DE LA<br>JOURNÉE</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;line-height:1.3;">MÉTÉO<br>ÉMOT.</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;line-height:1.3;">TRAITE-<br>MENTS</th>
+        <th style="font-size:5px;text-align:center;vertical-align:middle;background:#1c1c2e;color:white;border:0.5px solid #555;line-height:1.3;">REMAR-<br>QUES<br>PARTIC.</th>
       </tr>
     </thead>
     <tbody>`;
@@ -976,11 +975,11 @@ function buildPrintTable(monday) {
 
     // Timeline cell
     let tlHtml=`<td style="padding:0;height:42px;position:relative;border:0.5px solid #aaa;overflow:hidden;">`;
-    // Hour labels at top
-    tlHtml+=`<div style="position:absolute;top:0;left:0;right:0;display:flex;height:10px;background:rgba(28,28,46,0.85);">`;
+    // Hour labels at top - show ALL hours
+    tlHtml+=`<div style="position:absolute;top:0;left:0;right:0;height:10px;background:rgba(28,28,46,0.85);">`;
     HOURS.forEach((h,idx)=>{
       const x=(idx/24)*100;
-      tlHtml+=`<div style="position:absolute;left:${x}%;font-size:5px;color:white;padding-left:1px;white-space:nowrap;">${h%3===0?String(h).padStart(2,'0')+'h':''}</div>`;
+      tlHtml+=`<div style="position:absolute;left:${x}%;font-size:4.5px;color:white;padding-left:0.5px;white-space:nowrap;line-height:10px;">${String(h).padStart(2,'0')}</div>`;
     });
     tlHtml+=`</div>`;
     // Hour grid lines
@@ -1015,8 +1014,8 @@ function buildPrintTable(monday) {
         const q=v.q||v; const dose=v.dose||null;
         return dose&&dose!==1?`${m} ${q}x${dose}cp`:`${m} x${q}`;
       }).join(', ')
-    ).filter(Boolean);
-    const remarksContent=[medPartsHtml.join('; '), dd.remarks||''].filter(Boolean).join(' — ');
+    ).filter(Boolean).join('; ');
+    const remarksOnly=dd.remarks||'';
     const durStr=(dd.durH!=null||dd.durM!=null)?`${dd.durH||0}h${String(dd.durM||0).padStart(2,'0')}`:'';
 
     html+=`<tr style="height:42px;">
@@ -1029,7 +1028,8 @@ function buildPrintTable(monday) {
       <td style="text-align:center;vertical-align:middle;font-size:9px;border:0.5px solid #aaa;">${durStr}</td>
       <td style="text-align:center;vertical-align:middle;font-size:9px;border:0.5px solid #aaa;">${dd.form!=null?dd.form+'/10':''}</td>
       <td style="text-align:center;vertical-align:middle;font-size:7px;border:0.5px solid #aaa;padding:2px;">${dd.meteo||''}</td>
-      <td style="vertical-align:top;font-size:7px;border:0.5px solid #aaa;padding:3px;">${remarksContent}</td>
+      <td style="vertical-align:top;font-size:6px;border:0.5px solid #aaa;padding:2px;">${medPartsHtml}</td>
+      <td style="vertical-align:top;font-size:6px;border:0.5px solid #aaa;padding:2px;">${remarksOnly}</td>
     </tr>`;
   }
 
@@ -1208,13 +1208,14 @@ function generatePDF() {
   const usableH = pageH - margin * 2;
 
   // Column widths (mm)
-  const colDate = 18;
-  const colQ = 18;
-  const colDur = 16;
-  const colF = 18;
-  const colMeteo = 14;
+  const colDate = 15;
+  const colQ = 16;
+  const colDur = 14;
+  const colF = 16;
+  const colMeteo = 18;
+  const colMed = 36;
   const colRem = 36;
-  const colTL = usableW - colDate - colQ - colDur - colF - colMeteo - colRem;
+  const colTL = usableW - colDate - colQ - colDur - colF - colMeteo - colMed - colRem;
 
   // Row heights
   const headerH = 14;
@@ -1242,35 +1243,40 @@ function generatePDF() {
   doc.text('DATE', cx(x, colDate), tableTop + headerH / 2 + 1, { align: 'center' });
   x += colDate;
 
-  // Hour labels in header
-  doc.setFontSize(5);
+  // Hour labels in header - ALL hours
+  doc.setFontSize(4.5);
   HOURS.forEach((h, idx) => {
     const hx = x + (idx / 24) * colTL;
-    if (h % 3 === 0) {
-      doc.setTextColor(255, 255, 255);
-      doc.text(String(h).padStart(2, '0') + 'h', hx, tableTop + 5, { align: 'center' });
-    }
+    doc.setTextColor(255, 255, 255);
+    doc.text(String(h).padStart(2, '0'), hx, tableTop + 5, { align: 'center' });
     // vertical tick
     doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(h % 3 === 0 ? 0.3 : 0.1);
+    doc.setLineWidth(h % 6 === 0 ? 0.3 : 0.1);
     doc.line(hx, tableTop + 7, hx, tableTop + headerH);
   });
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(6);
+  doc.setFontSize(5);
   x += colTL;
-  doc.text('QUALITE', cx(x, colQ), tableTop + 5, { align: 'center' });
-  doc.text('SOMMEIL', cx(x, colQ), tableTop + 9, { align: 'center' });
+  doc.text('QUALITE', cx(x, colQ), tableTop + 4, { align: 'center' });
+  doc.text('DU', cx(x, colQ), tableTop + 8, { align: 'center' });
+  doc.text('SOMMEIL', cx(x, colQ), tableTop + 12, { align: 'center' });
   x += colQ;
-  doc.text('DUREE', cx(x, colDur), tableTop + 5, { align: 'center' });
-  doc.text('SOMMEIL', cx(x, colDur), tableTop + 9, { align: 'center' });
+  doc.text('DUREE', cx(x, colDur), tableTop + 4, { align: 'center' });
+  doc.text('DU', cx(x, colDur), tableTop + 8, { align: 'center' });
+  doc.text('SOMMEIL', cx(x, colDur), tableTop + 12, { align: 'center' });
   x += colDur;
-  doc.text('FORME', cx(x, colF), tableTop + 5, { align: 'center' });
-  doc.text('JOURNEE', cx(x, colF), tableTop + 9, { align: 'center' });
+  doc.text('FORME', cx(x, colF), tableTop + 4, { align: 'center' });
+  doc.text('DE LA', cx(x, colF), tableTop + 8, { align: 'center' });
+  doc.text('JOURNEE', cx(x, colF), tableTop + 12, { align: 'center' });
   x += colF;
-  doc.text('METEO', cx(x, colMeteo), tableTop + 5, { align: 'center' });
-  doc.text('EMOT.', cx(x, colMeteo), tableTop + 9, { align: 'center' });
+  doc.text('METEO', cx(x, colMeteo), tableTop + 6, { align: 'center' });
+  doc.text('EMOT.', cx(x, colMeteo), tableTop + 10, { align: 'center' });
   x += colMeteo;
-  doc.text('REMARQUES', cx(x, colRem), tableTop + 7, { align: 'center' });
+  doc.text('TRAITE-', cx(x, colMed), tableTop + 6, { align: 'center' });
+  doc.text('MENTS', cx(x, colMed), tableTop + 10, { align: 'center' });
+  x += colMed;
+  doc.text('REMAR-', cx(x, colRem), tableTop + 6, { align: 'center' });
+  doc.text('QUES', cx(x, colRem), tableTop + 10, { align: 'center' });
 
   // Rows
   for (let i = 0; i < 7; i++) {
@@ -1377,18 +1383,29 @@ function generatePDF() {
       doc.text(meteoLines, mX + colMeteo/2, rowY + rowH/2 + 1, {align:'center'});
     }
 
-    // Remarks
-    const rX = mX + colMeteo;
-    doc.rect(rX, rowY, colRem, rowH);
+    // Treatments (meds)
+    const medX = mX + colMeteo;
+    doc.rect(medX, rowY, colMed, rowH);
     const medParts = evs.filter(e => e.type === 'med').map(e =>
       Object.entries(e.meds || {}).filter(([, v]) => (v.q||v) > 0).map(([m, v]) => {
         const q=v.q||v; const dose=v.dose||null;
         return dose&&dose!==1 ? `${m} ${q}x${dose}cp` : `${m} x${q}`;
       }).join(', ')
     ).filter(Boolean);
-    const rem = pdfSafe([medParts.join('; '), dd.remarks || ''].filter(Boolean).join(' '));
+    const medStr = pdfSafe(medParts.join('; '));
+    if (medStr) {
+      doc.setFontSize(5.5);
+      doc.setTextColor(28, 28, 46);
+      const medLines = doc.splitTextToSize(medStr, colMed - 2);
+      doc.text(medLines, medX + 1, rowY + 3);
+    }
+
+    // Remarks
+    const rX = medX + colMed;
+    doc.rect(rX, rowY, colRem, rowH);
+    const rem = pdfSafe(dd.remarks || '');
     if (rem) {
-      doc.setFontSize(6);
+      doc.setFontSize(5.5);
       doc.setTextColor(28, 28, 46);
       const lines = doc.splitTextToSize(rem, colRem - 2);
       doc.text(lines, rX + 1, rowY + 3);
